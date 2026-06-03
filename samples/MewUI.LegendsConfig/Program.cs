@@ -123,6 +123,7 @@ sealed class LegendsConfigController : IDisposable
     private Dictionary<string, string> _preferences = new(StringComparer.OrdinalIgnoreCase);
     private bool _suppressWatcher;
     private bool _disposed;
+    private bool _configAvailable = true;
 
     public LegendsConfigController(string configPath)
     {
@@ -148,10 +149,9 @@ sealed class LegendsConfigController : IDisposable
 
     public void Start()
     {
-        EnsureSampleFile();
         _preferences = PreferenceStore.Load(_preferencePath);
-        LoadLatest(restorePreferences: true, reason: "Loaded");
         StartWatcher();
+        LoadLatest(restorePreferences: true, reason: "Loaded");
     }
 
     public void Dispose()
@@ -220,17 +220,6 @@ sealed class LegendsConfigController : IDisposable
                     LoadLatest(restorePreferences: false, reason: "Preferences removed");
                 }));
 
-    private void EnsureSampleFile()
-    {
-        if (File.Exists(_configPath))
-        {
-            return;
-        }
-
-        Directory.CreateDirectory(Path.GetDirectoryName(_configPath) ?? AppContext.BaseDirectory);
-        File.WriteAllText(_configPath, SampleIni.Text, Encoding.UTF8);
-    }
-
     private void StartWatcher()
     {
         var directory = Path.GetDirectoryName(_configPath);
@@ -239,7 +228,11 @@ sealed class LegendsConfigController : IDisposable
             directory = AppContext.BaseDirectory;
         }
 
-        Directory.CreateDirectory(directory);
+        if (!Directory.Exists(directory))
+        {
+            return;
+        }
+
         _watcher = new FileSystemWatcher(directory, Path.GetFileName(_configPath))
         {
             NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName | NotifyFilters.CreationTime,
@@ -276,6 +269,13 @@ sealed class LegendsConfigController : IDisposable
     {
         try
         {
+            if (!File.Exists(_configPath))
+            {
+                ShowMissingConfigError();
+                return;
+            }
+
+            _configAvailable = true;
             var document = IniDocument.Load(_configPath);
             var restored = restorePreferences ? document.ApplyPreferences(_preferences) : 0;
             _document = document;
@@ -302,9 +302,17 @@ sealed class LegendsConfigController : IDisposable
         _editors.Clear();
         _itemsPanel.Clear();
 
+        if (!_configAvailable)
+        {
+            _itemsPanel.Add(new TextBlock()
+                .Text("未找到 Legends.ini。请将本程序放在正确的 MapleLegends 游戏文件夹中（与 Legends.ini 同一目录）运行；修正位置后重启程序或点击 Reload latest。")
+                .TextWrapping(TextWrapping.Wrap));
+            return;
+        }
+
         if (_document.Lines.Count == 0)
         {
-            _itemsPanel.Add(new TextBlock().Text("The ini file is empty. Add settings in Legends.ini, then click Reload latest.").TextWrapping(TextWrapping.Wrap));
+            _itemsPanel.Add(new TextBlock().Text("Legends.ini is empty. The editor is showing the file exactly as found and will not invent default settings.").TextWrapping(TextWrapping.Wrap));
             return;
         }
 
@@ -358,9 +366,7 @@ sealed class LegendsConfigController : IDisposable
             explanations.Add(setting.InlineComment.Trim());
         }
 
-        var explanation = explanations.Count == 0
-            ? "No description was found for this setting."
-            : string.Join(Environment.NewLine, explanations);
+        var explanation = string.Join(Environment.NewLine, explanations);
 
         return new Border()
             .Padding(12)
@@ -389,13 +395,26 @@ sealed class LegendsConfigController : IDisposable
                             .Children(
                                 new TextBox()
                                     .BindText(editor.Value),
-                                new TextBlock()
-                                    .Text(explanation)
-                                    .TextWrapping(TextWrapping.Wrap))));
+                                BuildExplanation(explanation))));
+    }
+
+    private Element BuildExplanation(string explanation)
+    {
+        return string.IsNullOrWhiteSpace(explanation)
+            ? new Border().Height(0)
+            : new TextBlock()
+                .Text(explanation)
+                .TextWrapping(TextWrapping.Wrap);
     }
 
     private void Save()
     {
+        if (!File.Exists(_configPath))
+        {
+            ShowMissingConfigError();
+            return;
+        }
+
         foreach (var editor in _editors)
         {
             editor.Setting.Value = editor.Value.Value;
@@ -408,6 +427,12 @@ sealed class LegendsConfigController : IDisposable
 
     private void SaveIniOnly()
     {
+        if (!File.Exists(_configPath))
+        {
+            ShowMissingConfigError();
+            return;
+        }
+
         try
         {
             WriteDocument();
@@ -416,6 +441,26 @@ sealed class LegendsConfigController : IDisposable
         catch (Exception ex)
         {
             _status.Value = $"Failed to save Legends.ini: {ex.Message}";
+        }
+    }
+
+    private void ShowMissingConfigError()
+    {
+        _configAvailable = false;
+        _document = new IniDocument();
+        RebuildEditors();
+        _summary.Value = "Legends.ini not found.";
+        _status.Value = $"未找到 Legends.ini：{_configPath}。请将本程序放在正确的 MapleLegends 游戏文件夹中运行。";
+
+        try
+        {
+            NativeMessageBox.Show(
+                "未找到 Legends.ini。请将本程序放在正确的 MapleLegends 游戏文件夹中（与 Legends.ini 同一目录）并重新运行。",
+                "Legends.ini not found");
+        }
+        catch
+        {
+            // The status text in the main window carries the same message if native dialogs are unavailable.
         }
     }
 
@@ -493,6 +538,7 @@ sealed class SettingLine(
     string separator,
     string leadingWhitespace,
     string keyPadding,
+    string valuePrefix,
     string valueSuffix,
     IReadOnlyList<string> explanation) : IniLine
 {
@@ -508,13 +554,15 @@ sealed class SettingLine(
 
     public string KeyPadding { get; } = keyPadding;
 
+    public string ValuePrefix { get; } = valuePrefix;
+
     public string InlineComment { get; } = valueSuffix;
 
     public IReadOnlyList<string> Explanation { get; } = explanation;
 
     public string PreferenceKey => Section + "\u001f" + Key;
 
-    public override string ToIniText() => LeadingWhitespace + Key + KeyPadding + Separator + Value + InlineComment;
+    public override string ToIniText() => LeadingWhitespace + Key + KeyPadding + Separator + ValuePrefix + Value + InlineComment;
 }
 
 sealed class IniDocument
@@ -617,8 +665,11 @@ sealed class IniDocument
         }
 
         var left = raw[..separatorIndex];
-        var value = raw[(separatorIndex + 1)..];
-        var suffix = ExtractInlineComment(ref value);
+        var rawValue = raw[(separatorIndex + 1)..];
+        var suffix = ExtractInlineComment(ref rawValue);
+        var valuePrefixLength = rawValue.Length - rawValue.TrimStart().Length;
+        var valuePrefix = rawValue[..valuePrefixLength];
+        var value = rawValue[valuePrefixLength..];
         var leadingCount = left.Length - left.TrimStart().Length;
         var leading = left[..leadingCount];
         var keyWithPadding = left[leadingCount..];
@@ -629,7 +680,7 @@ sealed class IniDocument
         }
 
         var padding = keyWithPadding[key.Length..];
-        setting = new SettingLine(section, key, value, separator, leading, padding, suffix, comments.ToArray());
+        setting = new SettingLine(section, key, value, separator, leading, padding, valuePrefix, suffix, comments.ToArray());
         return true;
     }
 
@@ -724,32 +775,4 @@ static class PreferenceStore
     private static string Encode(string value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
 
     private static string Decode(string value) => Encoding.UTF8.GetString(Convert.FromBase64String(value));
-}
-
-static class SampleIni
-{
-    public const string Text = """
-; MapleLegends display options.
-; WindowMode accepts Windowed, Borderless, or Fullscreen.
-[Display]
-WindowMode=Windowed
-; Width of the game window in pixels.
-Width=1280
-; Height of the game window in pixels.
-Height=720
-
-; Audio options used by the game client.
-[Audio]
-; MasterVolume range: 0-100.
-MasterVolume=80
-; Toggle background music.
-Music=true
-
-; Gameplay defaults.
-[Gameplay]
-; Locale code used for text and formatting.
-Locale=en-US
-; Show damage numbers above characters.
-ShowDamage=true
-""";
 }
