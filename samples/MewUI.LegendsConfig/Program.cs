@@ -20,7 +20,7 @@ Application
             .Resizable(980, 720)
             .StartCenterScreen()
             .OnBuild(w => w
-                .Title("MewUI Legends.ini Config")
+                .Title("MewUI Legends.ini 配置编辑器")
                 .Content(controller.BuildView())
                 .OnLoaded(() => controller.Start())
                 .OnClosed(() => controller.Dispose())))
@@ -96,7 +96,7 @@ static void Startup()
     {
         try
         {
-            NativeMessageBox.Show(e.Exception.ToString(), "Unhandled UI exception");
+            NativeMessageBox.Show(e.Exception.ToString(), "未处理的 UI 异常");
         }
         catch
         {
@@ -112,7 +112,7 @@ sealed class LegendsConfigController : IDisposable
     private readonly string _configPath;
     private readonly string _preferencePath;
     private readonly StackPanel _itemsPanel = new();
-    private readonly ObservableValue<string> _status = new("Ready");
+    private readonly ObservableValue<string> _status = new("就绪");
     private readonly ObservableValue<string> _summary = new(string.Empty);
     private readonly List<SettingEditor> _editors = new();
     private readonly DispatcherTimer _reloadTimer = new(TimeSpan.FromMilliseconds(350));
@@ -133,7 +133,7 @@ sealed class LegendsConfigController : IDisposable
         _reloadTimer.Tick += () =>
         {
             _reloadTimer.Stop();
-            LoadLatest(restorePreferences: true, reason: "External change detected");
+            LoadLatest(restorePreferences: true, reason: "检测到外部变更");
         };
     }
 
@@ -151,7 +151,7 @@ sealed class LegendsConfigController : IDisposable
     {
         _preferences = PreferenceStore.Load(_preferencePath);
         StartWatcher();
-        LoadLatest(restorePreferences: true, reason: "Loaded");
+        LoadLatest(restorePreferences: true, reason: "已加载");
     }
 
     public void Dispose()
@@ -166,50 +166,47 @@ sealed class LegendsConfigController : IDisposable
         _watcher?.Dispose();
     }
 
-    private Element Header() => new Border()
-        .Padding(14, 12)
-        .BorderThickness(1)
-        .Child(
-            new StackPanel()
-                .Vertical()
-                .Spacing(6)
-                .Children(
-                    new TextBlock()
-                        .Text("Legends.ini Configuration Editor")
-                        .FontSize(20)
-                        .Bold(),
-                    new TextBlock()
-                        .Text($"Config: {_configPath}")
-                        .TextWrapping(TextWrapping.Wrap),
-                    new TextBlock()
-                        .Text($"Preferences: {_preferencePath}")
-                        .TextWrapping(TextWrapping.Wrap),
-                    new TextBlock()
-                        .BindText(_summary)
-                        .TextWrapping(TextWrapping.Wrap),
-                    new TextBlock()
-                        .BindText(_status)
-                        .TextWrapping(TextWrapping.Wrap)));
+    private Element Header() => CreateCard(
+        new StackPanel()
+            .Vertical()
+            .Spacing(6)
+            .Children(
+                new TextBlock()
+                    .Text("Legends.ini 配置编辑器")
+                    .FontSize(20)
+                    .Bold(),
+                new TextBlock()
+                    .Text($"配置文件：{_configPath}")
+                    .TextWrapping(TextWrapping.Wrap),
+                new TextBlock()
+                    .Text($"用户偏好：{_preferencePath}")
+                    .TextWrapping(TextWrapping.Wrap),
+                new TextBlock()
+                    .BindText(_summary)
+                    .TextWrapping(TextWrapping.Wrap),
+                new TextBlock()
+                    .BindText(_status)
+                    .TextWrapping(TextWrapping.Wrap)));
 
     private Element Actions() => new StackPanel()
         .Horizontal()
         .Spacing(8)
         .Children(
             new Button()
-                .Content("Reload latest")
-                .OnClick(() => LoadLatest(restorePreferences: true, reason: "Reloaded")),
+                .Content("重新加载")
+                .OnClick(() => LoadLatest(restorePreferences: true, reason: "已重新加载")),
             new Button()
-                .Content("Save preferences")
+                .Content("保存偏好")
                 .OnClick(Save),
             new Button()
-                .Content("Restore preferences to ini")
+                .Content("恢复偏好到 ini")
                 .OnClick(() =>
                 {
-                    LoadLatest(restorePreferences: true, reason: "Restored preferences");
+                    LoadLatest(restorePreferences: true, reason: "已恢复偏好");
                     SaveIniOnly();
                 }),
             new Button()
-                .Content("Forget preferences")
+                .Content("忘记偏好")
                 .OnClick(() =>
                 {
                     _preferences.Clear();
@@ -217,7 +214,7 @@ sealed class LegendsConfigController : IDisposable
                     {
                         File.Delete(_preferencePath);
                     }
-                    LoadLatest(restorePreferences: false, reason: "Preferences removed");
+                    LoadLatest(restorePreferences: false, reason: "已清除偏好");
                 }));
 
     private void StartWatcher()
@@ -286,14 +283,14 @@ sealed class LegendsConfigController : IDisposable
                 WriteDocument();
             }
 
-            _summary.Value = $"Sections: {_document.SectionCount}, settings: {_document.SettingCount}, stored preferences: {_preferences.Count}";
+            _summary.Value = $"分类：{_document.SectionCount}，配置项：{_document.SettingCount}，已保存偏好：{_preferences.Count}";
             _status.Value = restored > 0
-                ? $"{reason}: restored {restored} preferred value(s) into the latest Legends.ini structure at {DateTime.Now:T}."
-                : $"{reason}: showing latest Legends.ini at {DateTime.Now:T}.";
+                ? $"{reason}：已将 {restored} 个偏好值恢复到最新 Legends.ini 结构中（{DateTime.Now:T}）。"
+                : $"{reason}：正在显示最新 Legends.ini（{DateTime.Now:T}）。";
         }
         catch (Exception ex)
         {
-            _status.Value = $"Failed to load Legends.ini: {ex.Message}";
+            _status.Value = $"读取 Legends.ini 失败：{ex.Message}";
         }
     }
 
@@ -304,98 +301,211 @@ sealed class LegendsConfigController : IDisposable
 
         if (!_configAvailable)
         {
-            _itemsPanel.Add(new TextBlock()
-                .Text("未找到 Legends.ini。请将本程序放在正确的 MapleLegends 游戏文件夹中（与 Legends.ini 同一目录）运行；修正位置后重启程序或点击 Reload latest。")
-                .TextWrapping(TextWrapping.Wrap));
+            _itemsPanel.Add(CreateCard(
+                new TextBlock()
+                    .Text("未找到 Legends.ini。请将本程序放在正确的 MapleLegends 游戏文件夹中（与 Legends.ini 同一目录）运行；修正位置后重启程序或点击重新加载。")
+                    .TextWrapping(TextWrapping.Wrap)));
             return;
         }
 
         if (_document.Lines.Count == 0)
         {
-            _itemsPanel.Add(new TextBlock().Text("Legends.ini is empty. The editor is showing the file exactly as found and will not invent default settings.").TextWrapping(TextWrapping.Wrap));
+            _itemsPanel.Add(CreateCard(new TextBlock()
+                .Text("Legends.ini 为空。编辑器将按文件实际内容显示，不会创建或假设默认配置。")
+                .TextWrapping(TextWrapping.Wrap)));
             return;
         }
+
+        var sections = BuildSectionGroups();
+        var tabs = sections
+            .Select(section => new TabItem()
+                .Header(section.DisplayName, accessKey: false)
+                .Content(new ScrollViewer()
+                    .VerticalScroll(ScrollMode.Auto)
+                    .Content(section.Panel)))
+            .ToArray();
+
+        _itemsPanel.Add(new TabControl().TabItems(tabs));
+    }
+
+    private List<SectionGroup> BuildSectionGroups()
+    {
+        var groups = new List<SectionGroup>();
+        var pendingComments = new List<CommentLine>();
+
+        SectionGroup EnsureGroup(string sectionName)
+        {
+            var displayName = string.IsNullOrEmpty(sectionName)
+                ? "通用"
+                : Translation.ToChinese(sectionName);
+            var group = new SectionGroup(sectionName, displayName, new StackPanel().Vertical().Spacing(12).Padding(4));
+            groups.Add(group);
+            return group;
+        }
+
+        void FlushComments(SectionGroup group)
+        {
+            foreach (var comment in pendingComments)
+            {
+                group.Panel.Add(new TextBlock()
+                    .Text(Translation.TranslateCommentLine(comment.Text))
+                    .TextWrapping(TextWrapping.Wrap));
+            }
+
+            pendingComments.Clear();
+        }
+
+        var current = EnsureGroup(string.Empty);
 
         foreach (var line in _document.Lines)
         {
             switch (line)
             {
                 case SectionLine section:
-                    _itemsPanel.Add(new TextBlock()
-                        .Text(string.IsNullOrEmpty(section.Name) ? "Global" : $"[{section.Name}]")
+                    FlushComments(current);
+                    current = EnsureGroup(section.Name);
+                    current.Panel.Add(new TextBlock()
+                        .Text($"[{Translation.ToChinese(section.Name)}]")
                         .FontSize(17)
                         .Bold());
                     break;
 
                 case CommentLine comment:
-                    _itemsPanel.Add(new TextBlock()
-                        .Text(comment.Text)
-                        .TextWrapping(TextWrapping.Wrap));
+                    pendingComments.Add(comment);
                     break;
 
                 case SettingLine setting:
+                    pendingComments.Clear();
                     var editor = new SettingEditor(setting, new ObservableValue<string>(setting.Value));
                     editor.Value.Changed += () => setting.Value = editor.Value.Value;
                     _editors.Add(editor);
-                    _itemsPanel.Add(BuildSetting(editor));
+                    current.Panel.Add(BuildSetting(editor));
                     break;
 
                 case BlankLine:
-                    _itemsPanel.Add(new Border().Height(4));
+                    FlushComments(current);
+                    current.Panel.Add(new Border().Height(4));
                     break;
 
                 case RawLine raw:
-                    _itemsPanel.Add(new TextBlock()
+                    FlushComments(current);
+                    current.Panel.Add(new TextBlock()
                         .Text(raw.Text)
                         .TextWrapping(TextWrapping.Wrap));
                     break;
             }
         }
+
+        FlushComments(current);
+        return groups.Where(static group => group.Panel.Count > 0).ToList();
     }
 
     private Element BuildSetting(SettingEditor editor)
     {
         var setting = editor.Setting;
-        var label = string.IsNullOrEmpty(setting.Section)
+        var label = Translation.ToChinese(setting.Key);
+        var originalKey = string.IsNullOrEmpty(setting.Section)
             ? setting.Key
             : $"{setting.Section}.{setting.Key}";
 
-        var explanations = setting.Explanation.ToList();
+        var explanations = setting.Explanation
+            .Select(Translation.ToChinese)
+            .ToList();
         if (!string.IsNullOrWhiteSpace(setting.InlineComment))
         {
-            explanations.Add(setting.InlineComment.Trim());
+            explanations.Add(Translation.ToChinese(setting.InlineComment.Trim().TrimStart(';', '#').Trim()));
         }
 
-        var explanation = string.Join(Environment.NewLine, explanations);
+        var explanation = string.Join(Environment.NewLine, explanations.Where(static text => !string.IsNullOrWhiteSpace(text)));
 
-        return new Border()
-            .Padding(12)
-            .BorderThickness(1)
-            .Child(
-                new Grid()
-                    .Columns("220,*")
-                    .Spacing(10)
-                    .Children(
-                        new StackPanel()
-                            .Vertical()
-                            .Spacing(4)
-                            .Column(0)
-                            .Children(
-                                new TextBlock()
-                                    .Text(label)
-                                    .Bold()
-                                    .TextWrapping(TextWrapping.Wrap),
-                                new TextBlock()
-                                    .Text($"Line {setting.LineNumber.ToString(CultureInfo.InvariantCulture)}")
-                                    .FontSize(11)),
-                        new StackPanel()
-                            .Vertical()
-                            .Spacing(6)
-                            .Column(1)
-                            .Children(
-                                new TextBox()
-                                    .BindText(editor.Value),
-                                BuildExplanation(explanation))));
+        return CreateCard(
+            new Grid()
+                .Columns("240,*")
+                .Spacing(12)
+                .Children(
+                    new StackPanel()
+                        .Vertical()
+                        .Spacing(4)
+                        .Column(0)
+                        .Children(
+                            new TextBlock()
+                                .Text(label)
+                                .Bold()
+                                .TextWrapping(TextWrapping.Wrap),
+                            new TextBlock()
+                                .Text(originalKey)
+                                .FontSize(11)
+                                .TextWrapping(TextWrapping.Wrap),
+                            new TextBlock()
+                                .Text($"第 {setting.LineNumber.ToString(CultureInfo.InvariantCulture)} 行")
+                                .FontSize(11)),
+                    new StackPanel()
+                        .Vertical()
+                        .Spacing(8)
+                        .Column(1)
+                        .Children(
+                            BuildSettingControl(editor),
+                            BuildExplanation(explanation))));
+    }
+
+    private Element BuildSettingControl(SettingEditor editor)
+    {
+        var setting = editor.Setting;
+        if (TryParseBoolean(setting.Value, out var isChecked))
+        {
+            var value = new ObservableValue<bool>(isChecked);
+            value.Changed += () => setting.Value = value.Value ? "true" : "false";
+            return new StackPanel()
+                .Horizontal()
+                .Spacing(8)
+                .Children(
+                    new ToggleSwitch().BindIsChecked(value),
+                    new TextBlock().BindText(value, static v => v ? "启用" : "禁用").CenterVertical());
+        }
+
+        var options = SettingOptions.From(setting).ToList();
+        if (options.Count > 0)
+        {
+            var selectedIndex = Math.Max(0, options.FindIndex(option => string.Equals(option.Value, setting.Value, StringComparison.OrdinalIgnoreCase)));
+            if (options.FindIndex(option => string.Equals(option.Value, setting.Value, StringComparison.OrdinalIgnoreCase)) < 0)
+            {
+                options.Insert(0, new SettingOption(setting.Value, setting.Value));
+                selectedIndex = 0;
+            }
+
+            var selected = new ObservableValue<int>(selectedIndex);
+            selected.Changed += () =>
+            {
+                if (selected.Value >= 0 && selected.Value < options.Count)
+                {
+                    setting.Value = options[selected.Value].Value;
+                }
+            };
+
+            return new ComboBox()
+                .Items(options, static option => option.DisplayText)
+                .BindSelectedIndex(selected);
+        }
+
+        return new TextBox().BindText(editor.Value);
+    }
+
+    private static bool TryParseBoolean(string value, out bool result)
+    {
+        if (string.Equals(value, "true", StringComparison.OrdinalIgnoreCase))
+        {
+            result = true;
+            return true;
+        }
+
+        if (string.Equals(value, "false", StringComparison.OrdinalIgnoreCase))
+        {
+            result = false;
+            return true;
+        }
+
+        result = false;
+        return false;
     }
 
     private Element BuildExplanation(string explanation)
@@ -407,6 +517,12 @@ sealed class LegendsConfigController : IDisposable
                 .TextWrapping(TextWrapping.Wrap);
     }
 
+    private FrameworkElement CreateCard(Element content) => new Border()
+        .Padding(14)
+        .CornerRadius(10)
+        .BorderThickness(1)
+        .Child(content);
+
     private void Save()
     {
         if (!File.Exists(_configPath))
@@ -417,8 +533,7 @@ sealed class LegendsConfigController : IDisposable
 
         foreach (var editor in _editors)
         {
-            editor.Setting.Value = editor.Value.Value;
-            _preferences[editor.Setting.PreferenceKey] = editor.Value.Value;
+            _preferences[editor.Setting.PreferenceKey] = editor.Setting.Value;
         }
 
         PreferenceStore.Save(_preferencePath, _preferences);
@@ -436,11 +551,11 @@ sealed class LegendsConfigController : IDisposable
         try
         {
             WriteDocument();
-            _status.Value = $"Saved Legends.ini and preference snapshot at {DateTime.Now:T}.";
+            _status.Value = $"已保存 Legends.ini 和用户偏好快照（{DateTime.Now:T}）。";
         }
         catch (Exception ex)
         {
-            _status.Value = $"Failed to save Legends.ini: {ex.Message}";
+            _status.Value = $"保存 Legends.ini 失败：{ex.Message}";
         }
     }
 
@@ -449,14 +564,14 @@ sealed class LegendsConfigController : IDisposable
         _configAvailable = false;
         _document = new IniDocument();
         RebuildEditors();
-        _summary.Value = "Legends.ini not found.";
+        _summary.Value = "未找到 Legends.ini。";
         _status.Value = $"未找到 Legends.ini：{_configPath}。请将本程序放在正确的 MapleLegends 游戏文件夹中运行。";
 
         try
         {
             NativeMessageBox.Show(
                 "未找到 Legends.ini。请将本程序放在正确的 MapleLegends 游戏文件夹中（与 Legends.ini 同一目录）并重新运行。",
-                "Legends.ini not found");
+                "未找到 Legends.ini");
         }
         catch
         {
@@ -486,6 +601,139 @@ sealed class LegendsConfigController : IDisposable
                 }
             });
         }
+    }
+}
+
+
+sealed record SectionGroup(string Name, string DisplayName, StackPanel Panel);
+
+sealed record SettingOption(string Value, string DisplayText);
+
+static class SettingOptions
+{
+    public static IEnumerable<SettingOption> From(SettingLine setting)
+    {
+        foreach (var explanation in setting.Explanation)
+        {
+            var separatorIndex = explanation.IndexOf('=');
+            if (separatorIndex <= 0)
+            {
+                continue;
+            }
+
+            var value = explanation[..separatorIndex].Trim();
+            var description = explanation[(separatorIndex + 1)..].Trim();
+            if (value.Length == 0 || description.Length == 0)
+            {
+                continue;
+            }
+
+            yield return new SettingOption(value, $"{value} - {Translation.ToChinese(description)}");
+        }
+    }
+}
+
+static class Translation
+{
+    private static readonly Dictionary<string, string> EnglishToChinese = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["APPEARANCE"] = "外观",
+        ["PERFORMANCE"] = "性能",
+        ["GAME"] = "游戏",
+        ["HDClient"] = "分辨率",
+        ["Windowed"] = "窗口模式",
+        ["DarkChat"] = "深色聊天背景",
+        ["DarkQuestAlarm"] = "深色任务提醒背景",
+        ["StreamerMode"] = "主播模式",
+        ["WeaponEffects"] = "武器特效",
+        ["WeaponsBehindCharacter"] = "武器背在角色身后",
+        ["SkipLogoAnimation"] = "跳过开场动画",
+        ["AutoClearCache"] = "自动清理图片缓存",
+        ["FastLoading"] = "快速加载",
+        ["Transition"] = "地图切换效果",
+        ["InfiniteChatLog"] = "无限聊天记录",
+        ["ClickMode"] = "点击交互模式",
+        ["NpcInteractBehavior"] = "NPC 交互按键行为",
+        ["WhiteScrollPrompt"] = "白卷使用确认",
+        ["CloseGameConfirmation"] = "关闭游戏确认",
+        ["FilterChatNotices"] = "过滤聊天提示",
+        ["AddMonsterLevelTag"] = "显示怪物等级",
+        ["RaiseDamageLines"] = "抬高伤害数字",
+        ["HighlightUpgradeSlots"] = "高亮升级次数",
+        ["OldSchool"] = "旧版界面元素",
+        ["MapleLegends - Old School MapleStory Configuration Menu (https://maplelegends.com/)"] = "MapleLegends - 旧版 MapleStory 配置菜单（https://maplelegends.com/）",
+        ["Version 1.34.0 Mar 22 2026"] = "版本 1.34.0（2026 年 3 月 22 日）",
+        ["true = enabled | false = disabled"] = "true = 启用 | false = 禁用",
+        ["This sets your resolution for MapleLegends"] = "设置 MapleLegends 的游戏分辨率。",
+        ["Run client in windowed mode"] = "以窗口模式运行客户端。",
+        ["Put on false if you prefer starting in full-screen mode"] = "如果希望启动时进入全屏模式，请设置为 false。",
+        ["In-game you can also press ALT + ENTER to toggle between windowed and full-screen"] = "在游戏中也可以按 ALT + ENTER 在窗口和全屏之间切换。",
+        ["Enable darker chat background, which helps you seeing the chat in bright areas"] = "启用更深色的聊天背景，便于在明亮场景中看清聊天内容。",
+        ["Enable darker Quest alarm background, which makes quests data visible on all backgrounds."] = "启用更深色的任务提醒背景，使任务信息在各种背景上都更清晰。",
+        ["Enable the Streamer Mode, which hides the login ID in the Title screen and in the Cash Shop."] = "启用主播模式，在标题画面和商城中隐藏登录 ID。",
+        ["Set to false to hide the visual effects that would show when swinging a cosmetic Weapon cover."] = "设置为 false 可隐藏挥动外观武器覆盖物时显示的视觉特效。",
+        ["Set to true to allow any two-handed weapon to appear behind the character's back, when standing in a rest position."] = "设置为 true 后，角色静止站立时任意双手武器都可显示在角色背后。",
+        ["This skips the starting logo animations and sends you straight to login."] = "跳过启动 Logo 动画，直接进入登录界面。",
+        ["Automatic cleaning of the image cache. Set to false if you experience freezing or stuttering during gameplay."] = "自动清理图片缓存。如果游戏中出现卡死或卡顿，可设置为 false。",
+        ["Turning it to false may cause crashes while bossing instead."] = "但设置为 false 可能会导致打 Boss 时崩溃。",
+        ["If set to true, allows for some game elements to be loaded more quickly on game launch."] = "设置为 true 时，部分游戏元素可在启动时更快加载。",
+        ["Set it to false if you experience frequent crashes after character selection."] = "如果选择角色后经常崩溃，请设置为 false。",
+        ["Select the type of transitioning between two maps. This affects the duration and speed of the dark screen during map transfer."] = "选择地图之间的切换类型；这会影响换图时黑屏的持续时间和速度。",
+        ["Enable infinite chat logging, which allows you to see everything said in-game from your game session without it erasing."] = "启用无限聊天记录，使当前游戏会话中的聊天内容不会被自动清除。",
+        ["Change this setting if you would like NPCs and Hired Merchants to only require a single click to interact with."] = "如果希望 NPC 和雇佣商人只需单击即可交互，请修改此设置。",
+        ["Change this setting if you would like NPC interact keys to work in dialogue options."] = "如果希望 NPC 交互键可用于对话选项，请修改此设置。",
+        ["Adds a confirmation prompt for White Scroll usage in the Legendary Spirit window. Set to false to remove the prompt."] = "在传奇之魂窗口中使用白卷时增加确认提示；设置为 false 可移除该提示。",
+        ["Adds a confirmation popup when closing the game via Alt-F4, via the X button, or by pressing Quit Game while ingame."] = "通过 Alt-F4、窗口 X 按钮或游戏内退出按钮关闭游戏时显示确认弹窗。",
+        ["Set to false to remove the popup."] = "设置为 false 可移除该弹窗。",
+        ["When set to true, chat notices about skill cooldowns or skill unavailability will not be displayed."] = "设置为 true 时，不显示技能冷却或技能不可用的聊天提示。",
+        ["When set to false, those chat notices will regularly get displayed on a two-seconds cooldown."] = "设置为 false 时，这些聊天提示会以两秒冷却间隔正常显示。",
+        ["Adds the level of a monster next to its name tag, under the sprite."] = "在怪物名称旁、精灵图下方显示怪物等级。",
+        ["Set to false to keep only the monster name."] = "设置为 false 则仅保留怪物名称。",
+        ["Changes the height at which the damage numbers over a monster's head are displayed."] = "改变怪物头顶伤害数字显示的高度。",
+        ["Set to true for the damage lines to appear above the monster buff icons."] = "设置为 true 时，伤害数字会显示在怪物增益图标上方。",
+        ["When set to true, equip upgrade slots number will be blue if the item is not clean, and red if no slots are left."] = "设置为 true 时，装备不干净时升级次数显示为蓝色，无剩余次数时显示为红色。",
+        ["Toggles between regular and old-school version of certain game elements (name in statusbar, game cursor)."] = "在部分游戏元素（状态栏名称、游戏光标）的常规版本和旧版之间切换。",
+        ["Set to true for the old-school version of the above elements to be enabled."] = "设置为 true 可启用上述元素的旧版样式。",
+        ["--------------------------------------"] = "--------------------------------------",
+        ["Run into a problem running the game?"] = "运行游戏时遇到问题？",
+        ["Website: https://maplelegends.com/"] = "官网：https://maplelegends.com/",
+        ["Forums: https://forum.maplelegends.com/"] = "论坛：https://forum.maplelegends.com/",
+        ["ijl15.dll / MapleLegends.exe not found errors? Your anti-virus is blocking the game. Make an exception to MapleLegends folder!"] = "提示找不到 ijl15.dll / MapleLegends.exe？可能是杀毒软件拦截了游戏，请将 MapleLegends 文件夹加入例外。",
+        ["*File* is either not designed for Windows or contains an error? Turn off Windows Smart App. This is a new feature bundled with windows 11, which stops unsigned programs, such as this fan server, from running."] = "提示 *File* 不适用于 Windows 或包含错误？请关闭 Windows Smart App；这是 Windows 11 的新功能，会阻止此类未签名程序运行。",
+        ["Classic (slowest)"] = "经典（最慢）",
+        ["Modern GMS-like"] = "现代 GMS 风格",
+        ["MapleLegends' tweaks (fastest)"] = "MapleLegends 调整版（最快）",
+        ["Classic (double click)"] = "经典（双击）",
+        ["Modern GMS-like (NPCs require single click)"] = "现代 GMS 风格（NPC 单击交互）",
+        ["MapleLegends' tweaks (NPCs and Hired Merchants require single click)"] = "MapleLegends 调整版（NPC 和雇佣商人单击交互）",
+        ["Classic (Close the dialogue)"] = "经典（关闭对话）",
+        ["Modern GMS-like (Skips the text animation and selects the dialogue)"] = "现代 GMS 风格（跳过文字动画并选择对话）",
+        ["MapleLegends' tweaks (Pressing once skips the animation and pressing again selects the dialogue)"] = "MapleLegends 调整版（按一次跳过动画，再按一次选择对话）",
+    };
+
+    public static string ToChinese(string text)
+    {
+        if (EnglishToChinese.TryGetValue(text.Trim(), out var translated))
+        {
+            return translated;
+        }
+
+        return text;
+    }
+
+    public static string TranslateCommentLine(string raw)
+    {
+        var trimmed = raw.TrimStart();
+        if (trimmed.Length == 0 || trimmed[0] is not (';' or '#'))
+        {
+            return ToChinese(raw);
+        }
+
+        var prefixLength = raw.Length - trimmed.Length;
+        var marker = trimmed[0];
+        var text = trimmed[1..].Trim();
+        var translated = ToChinese(text);
+        return raw[..prefixLength] + marker + " " + translated;
     }
 }
 
