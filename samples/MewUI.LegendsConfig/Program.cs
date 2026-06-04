@@ -517,7 +517,7 @@ sealed class LegendsConfigController : IDisposable
                 .TextWrapping(TextWrapping.Wrap);
     }
 
-    private FrameworkElement CreateCard(Element content) => new Border()
+    private FrameworkElement CreateCard(UIElement content) => new Border()
         .Padding(14)
         .CornerRadius(10)
         .BorderThickness(1)
@@ -851,7 +851,7 @@ sealed class IniDocument
                 continue;
             }
 
-            if (trimmed.StartsWith('[']) && trimmed.EndsWith(']') && trimmed.Length >= 2)
+            if (trimmed.StartsWith('[') && trimmed.EndsWith(']') && trimmed.Length >= 2)
             {
                 section = trimmed[1..^1].Trim();
                 document.Lines.Add(new SectionLine(section, raw) { LineNumber = lineNumber });
